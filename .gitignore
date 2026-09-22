@@ -1,8 +1,10 @@
 .DS_Store
 Thumbs.db
 node_modules/
-.env
-.env.*
-*.log
 dist/
 coverage/
+.env
+.env.*
+!.env.example
+config.local.js
+*.log
