@@ -12,7 +12,7 @@ drop trigger if exists profiles_updated_at on public.profiles; create trigger pr
 drop trigger if exists content_updated_at on public.content_items; create trigger content_updated_at before update on public.content_items for each row execute function public.set_updated_at();
 drop trigger if exists performance_updated_at on public.performance_metrics; create trigger performance_updated_at before update on public.performance_metrics for each row execute function public.set_updated_at();
 drop trigger if exists tasks_updated_at on public.tasks; create trigger tasks_updated_at before update on public.tasks for each row execute function public.set_updated_at();
-create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path=public as $$ begin insert into public.profiles(id,username,full_name,role) values(new.id,coalesce(new.raw_user_meta_data->>'username',split_part(new.email,'@',1)),coalesce(new.raw_user_meta_data->>'full_name',new.email),coalesce(new.raw_user_meta_data->>'role','copywriter')) on conflict(id) do update set username=excluded.username,full_name=excluded.full_name,role=excluded.role; return new; end; $$;
+create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path=public as $ begin insert into public.profiles(id,username,full_name,role) values(new.id,coalesce(new.raw_user_meta_data->>'username',split_part(new.email,'@',1)),coalesce(new.raw_user_meta_data->>'full_name',new.email),'copywriter') on conflict(id) do update set username=excluded.username,full_name=excluded.full_name; return new; end; $;
 drop trigger if exists on_auth_user_created on auth.users; create trigger on_auth_user_created after insert on auth.users for each row execute function public.handle_new_user();
 create or replace function public.app_role() returns text language sql stable security definer set search_path=public as $$ select role from public.profiles where id=auth.uid() and active=true limit 1 $$;
 create or replace function public.is_admin() returns boolean language sql stable security definer set search_path=public as $$ select public.app_role()='admin' $$;
@@ -45,3 +45,6 @@ create policy profiles_update on public.profiles for update to authenticated
 using(public.is_admin())
 with check(public.is_admin());
 
+
+-- Public sign-up should be disabled in Supabase Auth because this is an internal-only workspace.
+-- Admin-created users are provisioned by the protected Edge Function, then their profile role is set server-side.
