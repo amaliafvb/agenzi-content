@@ -1,19 +1,23 @@
-# AGENZI Content OS
+# AGENZI Studio — Internal Content OS
 
-Internal social media content operations workspace for AGENZI Digital Mandiri.
+Internal-only social media operations workspace for AGENZI Digital Mandiri.
 
-## Current scope
-- Internal roles: Admin, Strategist, Copywriter, Designer
-- Client database and client-specific content calendar
-- Content workflow: Brief → Copy → Design → Approval → Posted → Analytics
-- Canva and Google Drive links
-- Team task tracking
-- Client-specific calendar PDF via browser print
-- Work / Not Work content evaluation
-- Light premium UI: ivory, white and orange
+## Revision
+- Premium light UI: ivory, white and orange; no dark UI surfaces
+- Internal login only: Admin, Strategist, Copywriter, Designer
+- Client assignment per division
+- Client calendar PDF export
+- Content database: caption/copy, Canva, Drive, approval, PIC and deadlines
+- Task status per division
+- Performance input and live recalculation in the browser prototype
+- WORK / NOT WORK learning
+- Client create/delete controls
+- Internal login account management
+- Activity log
+- Supabase schema foundation for production Auth, RLS and Realtime
 
-## Prototype note
-This GitHub version is a frontend prototype. Login and data are stored in the browser for demonstration. Do not use demo credentials for production.
+## Important
+This GitHub version is still a frontend prototype. Credentials and content are stored in browser localStorage for demonstration. Do not use the demo passwords in production.
 
-## Production plan
-Connect Supabase Auth + PostgreSQL + RLS + Realtime, then deploy the frontend. Keep credentials and API secrets out of the repository.
+## Production next step
+Connect Supabase Auth + PostgreSQL + RLS + Realtime, then deploy the frontend. Never store real passwords, service-role keys or secrets in this repository.
