@@ -1,11 +1,87 @@
--- AGENZI Content OS — Supabase/Postgres schema
+-- AGENZI Content OS — internal production schema foundation
 create extension if not exists "pgcrypto";
-create table if not exists public.clients (id uuid primary key default gen_random_uuid(), name text not null unique, slug text unique, active boolean not null default true, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
-create table if not exists public.profiles (id uuid primary key references auth.users(id) on delete cascade, full_name text, role text not null check (role in ('admin','strategist','copywriter','designer')), created_at timestamptz not null default now());
-create table if not exists public.team_client_assignments (id uuid primary key default gen_random_uuid(), profile_id uuid not null references public.profiles(id) on delete cascade, client_id uuid not null references public.clients(id) on delete cascade, can_view boolean not null default true, can_edit boolean not null default true, unique(profile_id, client_id));
-create table if not exists public.content_items (id uuid primary key default gen_random_uuid(), client_id uuid not null references public.clients(id) on delete cascade, title text not null, platform text not null, status text not null default 'Draft', content_date date, content_time time, pic_id uuid references public.profiles(id) on delete set null, pillar text, goal text, content_type text, format text, caption_copy text, canva_design_url text, drive_url text, published_url text, client_approval text not null default 'Pending', work_label text not null default 'Not Evaluated' check (work_label in ('Work','Not Work','Not Evaluated')), created_at timestamptz not null default now(), updated_at timestamptz not null default now());
-create table if not exists public.performance_metrics (id uuid primary key default gen_random_uuid(), content_id uuid not null unique references public.content_items(id) on delete cascade, views bigint not null default 0, reach bigint not null default 0, likes bigint not null default 0, comments bigint not null default 0, shares bigint not null default 0, saves bigint not null default 0, reposts bigint not null default 0, clicks bigint not null default 0, leads bigint not null default 0, updated_at timestamptz not null default now());
-create table if not exists public.task_updates (id uuid primary key default gen_random_uuid(), content_id uuid not null references public.content_items(id) on delete cascade, actor_id uuid references public.profiles(id) on delete set null, department text not null check (department in ('admin','strategist','copywriter','designer')), task_status text not null default 'Not Started', note text, created_at timestamptz not null default now());
-alter table public.clients enable row level security; alter table public.profiles enable row level security; alter table public.team_client_assignments enable row level security; alter table public.content_items enable row level security; alter table public.performance_metrics enable row level security; alter table public.task_updates enable row level security;
--- Add RLS policies in Supabase after creating internal users. Client login is intentionally excluded.
--- Enable Realtime for content_items, performance_metrics and task_updates from Supabase Dashboard > Database > Publications.
+
+create table if not exists public.clients (
+ id uuid primary key default gen_random_uuid(),
+ name text not null unique,
+ slug text unique,
+ active boolean not null default true,
+ created_at timestamptz not null default now(),
+ updated_at timestamptz not null default now()
+);
+
+create table if not exists public.profiles (
+ id uuid primary key references auth.users(id) on delete cascade,
+ full_name text,
+ role text not null check (role in ('admin','strategist','copywriter','designer')),
+ created_at timestamptz not null default now(),
+ updated_at timestamptz not null default now()
+);
+
+create table if not exists public.team_client_assignments (
+ id uuid primary key default gen_random_uuid(),
+ profile_id uuid not null references public.profiles(id) on delete cascade,
+ client_id uuid not null references public.clients(id) on delete cascade,
+ can_view boolean not null default true,
+ can_edit boolean not null default true,
+ unique(profile_id,client_id)
+);
+
+create table if not exists public.content_items (
+ id uuid primary key default gen_random_uuid(),
+ client_id uuid not null references public.clients(id) on delete cascade,
+ title text not null,
+ platform text not null,
+ content_date date,
+ content_time time,
+ due_date date,
+ status text not null default 'Draft',
+ approval text not null default 'Pending',
+ pic_id uuid references public.profiles(id) on delete set null,
+ pillar text,
+ goal text,
+ content_type text,
+ format text,
+ caption_copy text,
+ canva_design_url text,
+ drive_url text,
+ published_url text,
+ work_label text not null default 'Not Evaluated' check(work_label in ('Work','Not Work','Not Evaluated')),
+ learning_reason text,
+ created_at timestamptz not null default now(),
+ updated_at timestamptz not null default now()
+);
+
+create table if not exists public.performance_metrics (
+ id uuid primary key default gen_random_uuid(),
+ content_id uuid not null unique references public.content_items(id) on delete cascade,
+ views bigint not null default 0,
+ reach bigint not null default 0,
+ likes bigint not null default 0,
+ comments bigint not null default 0,
+ shares bigint not null default 0,
+ saves bigint not null default 0,
+ clicks bigint not null default 0,
+ leads bigint not null default 0,
+ updated_at timestamptz not null default now()
+);
+
+create table if not exists public.task_updates (
+ id uuid primary key default gen_random_uuid(),
+ content_id uuid not null references public.content_items(id) on delete cascade,
+ actor_id uuid references public.profiles(id) on delete set null,
+ division text not null check(division in ('admin','strategist','copywriter','designer')),
+ task_status text not null default 'Not Started',
+ note text,
+ created_at timestamptz not null default now()
+);
+
+alter table public.clients enable row level security;
+alter table public.profiles enable row level security;
+alter table public.team_client_assignments enable row level security;
+alter table public.content_items enable row level security;
+alter table public.performance_metrics enable row level security;
+alter table public.task_updates enable row level security;
+
+-- Add role/assignment policies in Supabase SQL editor before production use.
+-- Enable Realtime for content_items, performance_metrics and task_updates.
