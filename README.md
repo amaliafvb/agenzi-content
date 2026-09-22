@@ -2,50 +2,69 @@
 
 Internal-only workspace for AGENZI Digital Mandiri.
 
-## Architecture
-- Frontend: modular vanilla ES modules
-- Auth: Supabase Auth using internal username-to-email mapping
-- Database: Supabase Postgres
-- Authorization: Row Level Security (role + client assignment)
-- Realtime: Supabase Realtime subscriptions
-- Reports: jsPDF + AutoTable client calendar / analytics exports
-- Admin functions: Supabase Edge Functions for create, activate/deactivate, delete and password reset
-- Container: Nginx + Docker
-- CI/CD: GitHub Actions → Docker Hub
+## Included
+- Premium light UI: ivory + white + orange
+- Internal login only: Admin, Strategist, Copywriter, Designer
+- Supabase Auth username/password login via internal email mapping
+- Client assignment per division
+- Client CRUD with Admin delete
+- Content calendar with client-only PDF export
+- Content workflow: strategy → copy → design → approval → posted
+- Canva / Google Drive / published links
+- Division tasks with PIC, priority, due date and status
+- Performance input and realtime analytics
+- WORK / NOT WORK content learning
+- Activity log
+- Admin user management via secure Edge Functions
+- Docker + Nginx + Docker Compose
+- GitHub Actions → Docker Hub
 
-## Roles
-- Admin: all clients, team, access and delete permissions
-- Strategist: planning, approvals, analytics, client management
-- Copywriter: assigned clients, caption/copy and assigned tasks
-- Designer: assigned clients, assets and assigned tasks
-- Client login is intentionally not supported.
+## Security model
+Passwords are handled by Supabase Auth and are not stored in frontend source code. Browser code uses only the Supabase publishable key. Service-role credentials belong only in Supabase Edge Function secrets and must never be committed to GitHub.
 
-## Security
-Real passwords, Supabase service-role keys and Docker Hub tokens are not stored in the frontend or repository. The browser only uses the Supabase publishable key.
+Client access and content access are enforced by PostgreSQL RLS using role and team_client_assignments.
 
 ## Supabase setup
 1. Create a Supabase project.
-2. Run `supabase_schema.sql` in SQL Editor.
-3. Deploy the four functions in `supabase/functions/`.
-4. Set function secrets: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `INTERNAL_EMAIL_DOMAIN`.
-5. Enable Realtime for: `clients`, `content_items`, `performance_metrics`, `tasks`, `team_client_assignments`, `activity_logs`.
-6. Create the first Admin Auth user with user metadata `username`, `full_name`, `role=admin`. The database trigger creates the profile.
+2. Run supabase_schema.sql in SQL Editor.
+3. Deploy the four Edge Functions:
+   - admin-create-user
+   - admin-set-user-active
+   - admin-delete-user
+   - admin-reset-password
+4. Set Edge Function secrets:
+   - SUPABASE_URL
+   - SUPABASE_SERVICE_ROLE_KEY
+   - INTERNAL_EMAIL_DOMAIN (example: internal.agenzi.local)
+5. Enable Realtime for clients, content_items, performance_metrics, tasks, team_client_assignments, and activity_logs.
+6. Create the first Auth user as Admin and set metadata:
+   - username
+   - full_name
+   - role=admin
+7. Copy config.example.js to config.js and put only the Project URL + Publishable Key in config.js.
 
-## Runtime config
-Copy `config.example.js` to `config.js` and set your Supabase Project URL + Publishable Key.
-
-## Docker
-```bash
-docker build -t agenzi-content .
-docker run --rm -p 8080:80 agenzi-content
-```
+## Local
+Serve the folder through a local web server because ES modules should not be opened directly with file://.
+bash:
+python -m http.server 8080
 
 Open http://localhost:8080.
 
-## Docker Hub
-The GitHub Actions workflow publishes `amaliafvb/agenzi-content` on pushes to `main` once the repository has:
-- Actions variable `DOCKERHUB_USERNAME`
-- Actions secret `DOCKERHUB_TOKEN`
+## Docker
+bash:
+docker build -t agenzi-content .
+docker run --rm -p 8080:80 agenzi-content
 
-## Development notes
-The repo is intentionally kept framework-free so the internal tool stays easy to operate. The next environment-specific step is wiring your Supabase project credentials and deploying the edge functions.
+## Docker Compose
+bash:
+docker compose up --build
+
+## Docker Hub
+The GitHub Actions workflow publishes amaliafvb/agenzi-content:latest from main.
+
+Configure GitHub Actions:
+- Variable: DOCKERHUB_USERNAME
+- Secret: DOCKERHUB_TOKEN
+
+## Production notes
+Actual Supabase credentials, first-admin setup and Docker Hub credentials are environment-specific and intentionally not included in this repository.
