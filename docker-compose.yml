@@ -1,0 +1,7 @@
+services:
+  agenzi-content:
+    build: .
+    image: \${DOCKERHUB_USERNAME:-amaliafvb}/agenzi-content:latest
+    ports:
+      - "8080:80"
+    restart: unless-stopped
