@@ -4,4 +4,8 @@ services:
     image: ${DOCKERHUB_USERNAME:-amaliafvb}/agenzi-content:latest
     ports:
       - "8080:80"
+    environment:
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:-}
+      INTERNAL_EMAIL_DOMAIN: ${INTERNAL_EMAIL_DOMAIN:-internal.agenzi.local}
     restart: unless-stopped
