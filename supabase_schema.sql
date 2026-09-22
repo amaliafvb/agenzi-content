@@ -29,3 +29,22 @@ drop policy if exists perf_select on public.performance_metrics;drop policy if e
 drop policy if exists task_select on public.tasks;drop policy if exists task_insert on public.tasks;drop policy if exists task_update on public.tasks;create policy task_select on public.tasks for select to authenticated using(public.is_manager() or assigned_to=auth.uid() or exists(select 1 from public.content_items c where c.id=content_id and public.can_view_client(c.client_id)));create policy task_insert on public.tasks for insert to authenticated with check(public.is_manager() or(assigned_to=auth.uid() and division=public.app_role()));create policy task_update on public.tasks for update to authenticated using(public.is_manager() or(assigned_to=auth.uid() and division=public.app_role())) with check(public.is_manager() or(assigned_to=auth.uid() and division=public.app_role()));
 drop policy if exists activity_select on public.activity_logs;drop policy if exists activity_insert on public.activity_logs;create policy activity_select on public.activity_logs for select to authenticated using(true);create policy activity_insert on public.activity_logs for insert to authenticated with check(actor_id=auth.uid());
 insert into public.clients(name,slug) values('Indo Pride','indo-pride'),('Meranti','meranti'),('Young Generation','young-generation'),('Dewana','dewana'),('Hubbun','hubbun'),('Aflah Apparel','aflah-apparel'),('Teman Wisata','teman-wisata'),('Warung Sateku','warung-sateku') on conflict(name) do nothing;
+
+create index if not exists idx_content_client_date on public.content_items(client_id,content_date);
+create index if not exists idx_content_pic on public.content_items(pic_id);
+create index if not exists idx_tasks_assigned_status on public.tasks(assigned_to,status,due_date);
+create index if not exists idx_tasks_content_division on public.tasks(content_id,division);
+create index if not exists idx_activity_created_at on public.activity_logs(created_at desc);
+
+drop policy if exists task_select on public.tasks;
+create policy task_select on public.tasks for select to authenticated
+using (
+  public.is_manager()
+  or assigned_to=auth.uid()
+);
+
+drop policy if exists profiles_update on public.profiles;
+create policy profiles_update on public.profiles for update to authenticated
+using(public.is_admin())
+with check(public.is_admin());
+
