@@ -12,7 +12,19 @@
   <link rel="stylesheet" href="src/styles.css" />
 </head>
 <body>
-  <div id="boot" class="boot"><div class="boot-card"><div class="mark">A</div><strong>Loading AGENZI Studio</strong><span>Preparing your workspace…</span></div></div>
+  <div id="boot" class="boot"><div class="boot-card"><div class="mark">A</div><strong id="bootTitle">Loading AGENZI Studio</strong><span id="bootMessage">Preparing your workspace…</span></div></div>
+  <script>
+    window.addEventListener('error', function(e){
+      var t=document.getElementById('bootTitle'),m=document.getElementById('bootMessage');
+      if(t)t.textContent='AGENZI Studio could not start';
+      if(m)m.textContent=(e&&e.message)?e.message:'Please refresh the page.';
+    });
+    window.addEventListener('unhandledrejection', function(e){
+      var t=document.getElementById('bootTitle'),m=document.getElementById('bootMessage');
+      if(t)t.textContent='AGENZI Studio could not start';
+      if(m)m.textContent=(e&&e.reason&&e.reason.message)?e.reason.message:'Please refresh the page.';
+    });
+  </script>
   <div id="loginScreen" class="login-shell" hidden>
     <div class="login-card">
       <section class="login-brand-panel">
@@ -66,6 +78,7 @@
   <div id="toastRoot" class="toast-root"></div>
   <div id="printRoot" class="print-only"></div>
   <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
   <script type="module" src="src/app.js"></script>
