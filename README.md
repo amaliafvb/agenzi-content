@@ -20,6 +20,7 @@ Internal workspace for AGENZI Digital Mandiri to run client content operations a
 - Supabase Edge Functions for privileged admin operations
 - Docker + Nginx
 - GitHub Actions → Docker Hub
+- GitHub Pages deployment
 
 ## Security
 Passwords are handled by Supabase Auth. There are no demo passwords or localStorage authentication in the production architecture. The browser uses only a Supabase publishable key. The service-role key exists only inside Supabase Edge Function execution and must never be committed.
@@ -71,6 +72,10 @@ Configure GitHub repository Actions:
 - Secret: DOCKERHUB_TOKEN
 
 The image does not contain passwords or service-role secrets.
+
+## GitHub Pages
+The repository includes a GitHub Actions workflow for the static AGENZI Studio site. With Pages enabled for GitHub Actions, the expected site is:
+https://amaliafvb.github.io/agenzi-content/
 
 ## GitHub
 Repository: https://github.com/amaliafvb/agenzi-content
