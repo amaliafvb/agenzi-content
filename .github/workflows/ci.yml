@@ -23,7 +23,9 @@ jobs:
         run: |
           ! grep -R "admin123\|strategy123\|copy1234\|design123" -n . --exclude-dir=.git
           ! grep -R "localStorage" -n src index.html
-      - name: Verify config has no real credentials
+      - name: Verify browser config is publishable-only
         run: |
-          grep -q "YOUR_SUPABASE_PROJECT_URL" config.js
-          grep -q "YOUR_SUPABASE_PUBLISHABLE_KEY" config.js
+          grep -q "SUPABASE_URL" config.js
+          grep -q "SUPABASE_PUBLISHABLE_KEY" config.js
+          ! grep -qi "service_role" config.js
+          ! grep -qi "supabase_service_role_key" config.js
