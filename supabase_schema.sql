@@ -85,3 +85,95 @@ select distinct t.assigned_to,c.client_id,true,true
 from public.tasks t join public.content_items c on c.id=t.content_id
 where t.assigned_to is not null
 on conflict(profile_id,client_id) do update set can_view=true,can_edit=true;
+
+
+-- AI reporting + social integrations
+create table if not exists public.social_accounts(
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references public.clients(id) on delete cascade,
+  platform text not null check(platform in('instagram','facebook','tiktok','youtube','linkedin')),
+  account_name text,
+  external_account_id text,
+  status text not null default 'pending' check(status in('pending','connected','expired','error','disabled')),
+  scopes jsonb not null default '[]'::jsonb,
+  metadata jsonb not null default '{}'::jsonb,
+  last_sync_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(client_id,platform,external_account_id)
+);
+
+create table if not exists public.social_account_secrets(
+  social_account_id uuid primary key references public.social_accounts(id) on delete cascade,
+  access_token_secret_id uuid,
+  refresh_token_secret_id uuid,
+  expires_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.social_metric_snapshots(
+  id uuid primary key default gen_random_uuid(),
+  social_account_id uuid not null references public.social_accounts(id) on delete cascade,
+  client_id uuid not null references public.clients(id) on delete cascade,
+  platform text not null,
+  metric_date date not null,
+  external_post_id text,
+  title text,
+  views bigint not null default 0 check(views>=0),
+  reach bigint not null default 0 check(reach>=0),
+  likes bigint not null default 0 check(likes>=0),
+  comments bigint not null default 0 check(comments>=0),
+  shares bigint not null default 0 check(shares>=0),
+  saves bigint not null default 0 check(saves>=0),
+  clicks bigint not null default 0 check(clicks>=0),
+  followers bigint not null default 0 check(followers>=0),
+  profile_visits bigint not null default 0 check(profile_visits>=0),
+  raw_data jsonb not null default '{}'::jsonb,
+  source text not null,
+  created_at timestamptz not null default now(),
+  unique(social_account_id,metric_date,external_post_id,source)
+);
+
+create table if not exists public.ai_reports(
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references public.clients(id) on delete cascade,
+  period_start date not null,
+  period_end date not null,
+  model text,
+  prompt_version text not null default 'v1',
+  report_markdown text not null,
+  report_json jsonb not null default '{}'::jsonb,
+  source_summary jsonb not null default '{}'::jsonb,
+  created_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.social_accounts enable row level security;
+alter table public.social_account_secrets enable row level security;
+alter table public.social_metric_snapshots enable row level security;
+alter table public.ai_reports enable row level security;
+
+drop policy if exists social_accounts_select on public.social_accounts;
+create policy social_accounts_select on public.social_accounts for select to authenticated using(public.can_view_client(client_id));
+drop policy if exists social_accounts_write on public.social_accounts;
+create policy social_accounts_write on public.social_accounts for all to authenticated using(public.is_manager()) with check(public.is_manager());
+
+drop policy if exists social_metric_select on public.social_metric_snapshots;
+create policy social_metric_select on public.social_metric_snapshots for select to authenticated using(public.can_view_client(client_id));
+drop policy if exists social_metric_write on public.social_metric_snapshots;
+create policy social_metric_write on public.social_metric_snapshots for all to authenticated using(public.is_manager()) with check(public.is_manager());
+
+drop policy if exists ai_reports_select on public.ai_reports;
+create policy ai_reports_select on public.ai_reports for select to authenticated using(public.can_view_client(client_id));
+drop policy if exists ai_reports_insert on public.ai_reports;
+create policy ai_reports_insert on public.ai_reports for insert to authenticated with check(public.can_view_client(client_id));
+drop policy if exists ai_reports_delete on public.ai_reports;
+create policy ai_reports_delete on public.ai_reports for delete to authenticated using(public.is_manager());
+
+revoke all on public.social_account_secrets from public;
+revoke all on public.social_account_secrets from authenticated;
+revoke all on public.social_account_secrets from anon;
+
+create index if not exists idx_social_accounts_client on public.social_accounts(client_id);
+create index if not exists idx_social_metrics_client_date on public.social_metric_snapshots(client_id,metric_date desc);
+create index if not exists idx_ai_reports_client_period on public.ai_reports(client_id,period_end desc);
