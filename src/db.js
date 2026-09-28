@@ -1,6 +1,6 @@
 import{state}from'./auth.js';import{supabase}from'./supabase.js';
 const req=()=>{if(!supabase)throw new Error('Supabase belum dikonfigurasi.')};
-const SEL='id,client_id,title,platform,content_date,content_time,due_date,status,approval,pic_id,pillar,goal,content_type,format,caption_copy,canva_design_url,drive_url,published_url,work_label,learning_reason,created_at,updated_at,clients(name),profiles:pic_id(full_name,username,role),performance_metrics(views,reach,likes,comments,shares,saves,clicks,leads,updated_at),tasks(id,division,assigned_to,status,due_date,priority,note,fee_amount,updated_at)';
+const SEL='id,client_id,title,platform,content_date,content_time,due_date,status,approval,pic_id,pillar,goal,content_type,format,caption_copy,canva_design_url,drive_url,published_url,work_label,learning_reason,created_at,updated_at,clients(name),profiles:pic_id(full_name,username,role),performance_metrics(views,reach,likes,comments,shares,saves,clicks,leads,updated_at)';
 export async function clients(){req();const{data,error}=await supabase.from('clients').select('*').eq('active',true).order('name');if(error)throw error;return data||[]}
 export async function createClient(v){req();const{data,error}=await supabase.from('clients').insert(v).select().single();if(error)throw error;return data}
 export async function deleteClient(id){req();const{error}=await supabase.from('clients').delete().eq('id',id);if(error)throw error}
