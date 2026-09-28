@@ -53,3 +53,35 @@ with check(public.is_admin());
 create or replace function public.guard_task_fee() returns trigger language plpgsql security definer set search_path=public, pg_temp as $$ begin if public.app_role() not in('admin','strategist') then if tg_op='UPDATE' then new.fee_amount:=old.fee_amount; else new.fee_amount:=0; end if; end if; return new; end; $$;
 drop trigger if exists tasks_guard_fee on public.tasks; create trigger tasks_guard_fee before insert or update on public.tasks for each row execute function public.guard_task_fee();
 create index if not exists idx_tasks_fee_due on public.tasks(fee_amount,due_date,assigned_to,status);
+
+create or replace function public.sync_task_client_access()
+returns trigger language plpgsql security definer set search_path=public, pg_temp as $$
+declare cid uuid;
+begin
+  if new.assigned_to is null or new.content_id is null then return new; end if;
+  select client_id into cid from public.content_items where id=new.content_id;
+  if cid is not null then
+    insert into public.team_client_assignments(profile_id,client_id,can_view,can_edit)
+    values(new.assigned_to,cid,true,true)
+    on conflict(profile_id,client_id) do update set can_view=true,can_edit=true;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists tasks_sync_client_access on public.tasks;
+create trigger tasks_sync_client_access after insert or update of assigned_to,content_id on public.tasks
+for each row execute function public.sync_task_client_access();
+
+create or replace function public.can_view_client(p_client_id uuid)
+returns boolean language sql stable security definer set search_path=public, pg_temp as $$
+  select public.is_manager()
+  or exists(select 1 from public.team_client_assignments a where a.profile_id=auth.uid() and a.client_id=p_client_id and a.can_view=true)
+  or exists(select 1 from public.content_items c join public.tasks t on t.content_id=c.id where c.client_id=p_client_id and t.assigned_to=auth.uid());
+$$;
+
+insert into public.team_client_assignments(profile_id,client_id,can_view,can_edit)
+select distinct t.assigned_to,c.client_id,true,true
+from public.tasks t join public.content_items c on c.id=t.content_id
+where t.assigned_to is not null
+on conflict(profile_id,client_id) do update set can_view=true,can_edit=true;
