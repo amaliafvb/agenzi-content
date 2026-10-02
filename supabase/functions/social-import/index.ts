@@ -41,8 +41,7 @@ Deno.serve(async(req)=>{
     const m=postUrl.match(/(?:story_fbid=|posts\/)(\d+)/i);const directId=m?m[1]:null;
     const fields="id,message,created_time,permalink_url,full_picture,shares,reactions.summary(true),comments.summary(true)";
     const targetId=directId?((postUrl.match(/facebook\.com\/(\d+)/i)||[])[1]+"_"+directId):null;
-    let endpoint=targetId?"https://graph.facebook.com/"+apiVersion+"/"+targetId:"https://graph.facebook.com/"+apiVersion+"/"+pageId+"/posts?fields="+encodeURIComponent(fields)+"&limit=100&access_token="+encodeURIComponent(tok);
-    if(directId&&pageId)endpoint+="&access_token="+encodeURIComponent(tok)+"&fields="+encodeURIComponent(fields);
+    let endpoint=targetId?"https://graph.facebook.com/"+apiVersion+"/"+targetId+"?fields="+encodeURIComponent(fields)+"&access_token="+encodeURIComponent(tok):"https://graph.facebook.com/"+apiVersion+"/"+pageId+"/posts?fields="+encodeURIComponent(fields)+"&limit=100&access_token="+encodeURIComponent(tok);
     const res=await fetch(endpoint);const b=await res.json();if(!res.ok)throw new Error("Facebook API gagal: "+JSON.stringify(b));
     data=directId?b:(b.data||[]).find((x:any)=>norm(x.permalink_url||"")===norm(postUrl));
     if(!data)return json({error:"Post Facebook tidak ditemukan di Page yang terhubung."},404);
