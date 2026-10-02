@@ -177,3 +177,48 @@ revoke all on public.social_account_secrets from anon;
 create index if not exists idx_social_accounts_client on public.social_accounts(client_id);
 create index if not exists idx_social_metrics_client_date on public.social_metric_snapshots(client_id,metric_date desc);
 create index if not exists idx_ai_reports_client_period on public.ai_reports(client_id,period_end desc);
+
+
+-- Social OAuth + URL import + repost queue
+create table if not exists public.social_oauth_states(
+  id uuid primary key default gen_random_uuid(), state text not null unique, client_id uuid not null references public.clients(id) on delete cascade,
+  requester_id uuid not null references public.profiles(id) on delete cascade, platform text not null check(platform in('meta','tiktok')),
+  created_at timestamptz not null default now(), expires_at timestamptz not null
+);
+create table if not exists public.social_post_imports(
+  id uuid primary key default gen_random_uuid(), client_id uuid not null references public.clients(id) on delete cascade,
+  social_account_id uuid references public.social_accounts(id) on delete set null, platform text not null check(platform in('instagram','facebook','tiktok')),
+  post_url text not null, external_post_id text, author_handle text, title text, caption text, published_at timestamptz,
+  media_type text, media_url text, thumbnail_url text, views bigint not null default 0, reach bigint not null default 0,
+  likes bigint not null default 0, comments bigint not null default 0, shares bigint not null default 0, saves bigint not null default 0,
+  clicks bigint not null default 0, followers bigint not null default 0, profile_visits bigint not null default 0,
+  import_status text not null default 'pending' check(import_status in('pending','imported','needs_connection','unsupported','error')),
+  analysis_status text not null default 'pending' check(analysis_status in('pending','done','error')), analysis_text text,
+  raw_data jsonb not null default '{}'::jsonb, source text not null default 'api', created_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(), updated_at timestamptz not null default now()
+);
+create table if not exists public.repost_jobs(
+  id uuid primary key default gen_random_uuid(), client_id uuid not null references public.clients(id) on delete cascade,
+  source_import_id uuid references public.social_post_imports(id) on delete set null, target_social_account_id uuid references public.social_accounts(id) on delete set null,
+  target_platform text not null check(target_platform in('instagram','facebook','tiktok')), caption text, source_asset_url text,
+  rights_confirmed boolean not null default false, status text not null default 'draft' check(status in('draft','queued','publishing','published','error','unsupported')),
+  external_publish_id text, published_url text, error_message text, created_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(), updated_at timestamptz not null default now()
+);
+
+alter table public.social_oauth_states enable row level security;
+revoke all on public.social_oauth_states from public,anon,authenticated;
+alter table public.social_post_imports enable row level security;
+alter table public.repost_jobs enable row level security;
+drop policy if exists social_post_imports_select on public.social_post_imports; create policy social_post_imports_select on public.social_post_imports for select to authenticated using(public.can_view_client(client_id));
+drop policy if exists social_post_imports_write on public.social_post_imports; create policy social_post_imports_write on public.social_post_imports for all to authenticated using(public.is_manager()) with check(public.is_manager());
+drop policy if exists repost_jobs_select on public.repost_jobs; create policy repost_jobs_select on public.repost_jobs for select to authenticated using(public.can_view_client(client_id));
+drop policy if exists repost_jobs_write on public.repost_jobs; create policy repost_jobs_write on public.repost_jobs for all to authenticated using(public.is_manager()) with check(public.is_manager());
+create index if not exists idx_social_oauth_state_expiry on public.social_oauth_states(expires_at);
+create index if not exists idx_social_import_client_created on public.social_post_imports(client_id,created_at desc);
+create index if not exists idx_social_import_external on public.social_post_imports(platform,external_post_id);
+create index if not exists idx_repost_jobs_client_created on public.repost_jobs(client_id,created_at desc);
+create or replace function public.store_social_tokens(p_social_account_id uuid,p_access_token text,p_refresh_token text,p_expires_at timestamptz) returns void language plpgsql security definer set search_path=public,vault,pg_temp as $$ declare access_id uuid; refresh_id uuid; access_name text := 'social_access_' || p_social_account_id::text; refresh_name text := 'social_refresh_' || p_social_account_id::text; begin select id into access_id from vault.secrets where name=access_name limit 1; if access_id is null then select vault.create_secret(p_access_token,access_name,'AGENZI social access token') into access_id; else perform vault.update_secret(access_id,p_access_token,access_name,'AGENZI social access token'); end if; if coalesce(p_refresh_token,'')<>'' then select id into refresh_id from vault.secrets where name=refresh_name limit 1; if refresh_id is null then select vault.create_secret(p_refresh_token,refresh_name,'AGENZI social refresh token') into refresh_id; else perform vault.update_secret(refresh_id,p_refresh_token,refresh_name,'AGENZI social refresh token'); end if; end if; insert into public.social_account_secrets(social_account_id,access_token_secret_id,refresh_token_secret_id,expires_at,updated_at) values(p_social_account_id,access_id,refresh_id,p_expires_at,now()) on conflict(social_account_id) do update set access_token_secret_id=excluded.access_token_secret_id,refresh_token_secret_id=coalesce(excluded.refresh_token_secret_id,public.social_account_secrets.refresh_token_secret_id),expires_at=excluded.expires_at,updated_at=now(); end; $$;
+revoke all on function public.store_social_tokens(uuid,text,text,timestamptz) from public,anon,authenticated; grant execute on function public.store_social_tokens(uuid,text,text,timestamptz) to service_role;
+create or replace function public.get_social_tokens(p_social_account_id uuid) returns table(access_token text,refresh_token text,expires_at timestamptz) language sql security definer set search_path=public,vault,pg_temp as $$ select (select decrypted_secret from vault.decrypted_secrets where id=s.access_token_secret_id),(select decrypted_secret from vault.decrypted_secrets where id=s.refresh_token_secret_id),s.expires_at from public.social_account_secrets s where s.social_account_id=p_social_account_id; $$;
+revoke all on function public.get_social_tokens(uuid) from public,anon,authenticated; grant execute on function public.get_social_tokens(uuid) to service_role;
