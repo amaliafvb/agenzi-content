@@ -13,8 +13,11 @@ Add these secrets in Supabase → Edge Functions → Secrets:
 - `APP_PUBLIC_URL` = `https://amaliafvb.github.io/agenzi-content/`
 - `SOCIAL_OAUTH_REDIRECT_URL` = `https://gnuimthrmnprfczitlef.supabase.co/functions/v1/social-oauth-callback`
 
+Required for direct public URL metrics (the screenshot-style flow):
+- REFETCHER_API_KEY — server-side key for Refetcher public URL scraping. Never put this in config.js.
+
 Optional:
-- `META_GRAPH_VERSION`
+- META_GRAPH_VERSION
 - `META_OAUTH_SCOPES`
 - `TIKTOK_OAUTH_SCOPES`
 
@@ -59,3 +62,10 @@ A post URL is not a universal public-data API key.
 - `social-repost`
 
 OAuth tokens are stored through Supabase Vault using the database token bridge functions.
+
+
+## Direct public URL metrics
+
+Social Hub now uses a server-side public URL metrics adapter before OAuth. Paste an Instagram, Facebook, or TikTok post URL and AGENZI asks Refetcher for normalized metrics. The provider documents one POST endpoint that accepts a public URL and returns normalized metrics such as views, likes, comments and shares, with availability reported per metric. [Refetcher API docs](https://www.refetcher.com/docs)
+
+Set REFETCHER_API_KEY in Supabase Edge Function Secrets. The browser never sees the key.
