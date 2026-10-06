@@ -2,22 +2,52 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const CORS={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...CORS,"Content-Type":"application/json"}});
 function hostPlatform(url:string){try{const h=new URL(url).hostname.toLowerCase();if(h.includes("instagram.com"))return"instagram";if(h.includes("facebook.com")||h==="fb.com")return"facebook";if(h.includes("tiktok.com"))return"tiktok";return null}catch{return null}}
-function norm(url:string){try{const u=new URL(url);u.hash="";u.search="";return u.toString().replace(/\/$/,"")}catch{return url}}
-function metric(v:any){const n=Number(v);return Number.isFinite(n)&&n>=0?n:0}
-async function aiAnalyze(text:string,data:any){
+function metric(...vals:any[]){for(const v of vals){const n=Number(v);if(Number.isFinite(n)&&n>=0)return n}return 0}
+function first(...vals:any[]){return vals.find(v=>v!==undefined&&v!==null&&v!=="")??null}
+function engagementRate(m:any,followers:number,views:number){const total=metric(m.likes,m.like_count)+metric(m.comments,m.comment_count,m.comment_count)+metric(m.shares,m.share_count)+metric(m.saves,m.save_count,m.favorite_count,m.favorites_count)+metric(m.reposts,m.repost_count);const base=followers>0?followers:(views>0?views:0);return base?Number((total/base*100).toFixed(4)):0}
+async function aiAnalyze(text:string,data:any,imageUrl:string|null){
  const key=Deno.env.get("OPENAI_API_KEY");if(!key)return"";
- const prompt="You are AGENZI AI. Analyze this imported social post using only supplied facts. Return: 1) concise performance read, 2) what likely worked, 3) what to test next, 4) 3 repost/edit recommendations. Do not invent missing metrics. Respond in Indonesian.\n\n"+JSON.stringify({post:data,url:text});
- const r=await fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json"},body:JSON.stringify({model:Deno.env.get("OPENAI_MODEL")||"gpt-5",store:false,input:prompt})});
+ const basePrompt="You are AGENZI AI, a senior social media strategist. Analyze this post using only supplied facts. Return: Executive Insight, What Worked, What to Improve, and 3 concrete content ideas based on the post. Mention the exact metrics and explain engagement patterns. Never invent numbers. Respond in Indonesian.";
+ const input:any[]=[{role:"system",content:basePrompt},{role:"user",content:messageBlock(text,data)}];
+ if(imageUrl) input[1].content=[{type:"input_text",text:messageBlock(text,data)},{type:"input_image",image_url:imageUrl}];
+ const r=await fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json"},body:JSON.stringify({model:Deno.env.get("OPENAI_MODEL")||"gpt-5",store:false,input})});
  const b=await r.json();if(!r.ok)return"";return typeof b.output_text==="string"?b.output_text:"";
 }
-async function publicMetrics(url:string){
- const key=Deno.env.get("REFETCHER_API_KEY");if(!key)return null;
- const r=await fetch("https://api.refetcher.com/",{method:"POST",headers:{"X-API-Key":key,"Content-Type":"application/json"},body:JSON.stringify({url})});
+function messageBlock(url:string,data:any){return "Post URL: "+url+"\n\nStructured data:\n"+JSON.stringify(data);}
+async function runApify(actor:string,input:any){
+ const token=Deno.env.get("APIFY_API_TOKEN");if(!token)return null;
+ const endpoint="https://api.apify.com/v2/acts/"+actor+"/run-sync-get-dataset-items?token="+encodeURIComponent(token);
+ const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(input)});
  const b=await r.json();
- if(!r.ok)return {ok:false,error:"Public metrics provider request failed: "+JSON.stringify(b)};
- const item=b?.results?.[0];
- if(!item?.success)return {ok:false,error:item?.error?.message||"Public metrics provider could not read this URL."};
- return {ok:true,item};
+ if(!r.ok)throw new Error("Apify gagal: "+JSON.stringify(b));
+ return Array.isArray(b)?b:(Array.isArray(b?.data)?b.data:[]);
+}
+function apifyActor(platform:string){
+ return platform==="instagram"?(Deno.env.get("APIFY_INSTAGRAM_ACTOR")||"data-slayer~instagram-post-details"):
+ platform==="tiktok"?(Deno.env.get("APIFY_TIKTOK_ACTOR")||"a.actors~tiktok-post-data"):
+ (Deno.env.get("APIFY_FACEBOOK_ACTOR")||"headlessagent~facebook-profile-post-scraper");
+}
+function normalizeApify(platform:string,item:any,url:string){
+ const e=item?.engagement||{};
+ const followers=metric(item?.author?.followers,item?.followers,item?.creator?.followers);
+ const views=metric(item?.views,item?.view_count,item?.play_count,e.viewCount,e.views);
+ const likes=metric(item?.likes,item?.like_count,e.likeCount,e.likes,item?.reactionsCount,item?.reaction_count,e.reactionCount);
+ const comments=metric(item?.comments,item?.comment_count,item?.commentsCount,e.commentCount,e.comments);
+ const shares=metric(item?.shares,item?.share_count,item?.sharesCount,e.shareCount,e.shares);
+ const saves=metric(item?.saves,item?.save_count,item?.favorite_count,item?.favorites_count);
+ const reposts=metric(item?.reposts,item?.repost_count,item?.repostCount);
+ const createdAt=first(item?.postedAt,item?.posted_at,item?.createdAt,item?.timestamp,item?.createTime,item?.create_time);
+ return {
+   external_post_id:first(item?.id,item?.postId,item?.videoId,item?.itemId,item?.shortcode),
+   author_handle:first(item?.ownerUsername,item?.author?.username,item?.author?.name,item?.authorName,item?.username),
+   title:first(item?.title,item?.caption,item?.text,item?.postText,item?.video_description),
+   caption:first(item?.caption,item?.text,item?.postText,item?.video_description,item?.description),
+   published_at:createdAt,
+   media_type:first(item?.type,item?.postType,item?.media_type,item?.mediaType),
+   media_url:first(item?.videoUrl,item?.video_url,item?.mediaUrl,item?.displayUrl,item?.media?.[0]?.url,item?.attachments?.[0]?.url,item?.full_picture),
+   thumbnail_url:first(item?.thumbnailUrl,item?.thumbnail_url,item?.cover_image_url,item?.coverUrl,item?.displayUrl,item?.media?.[0]?.thumbnailUrl),
+   views,reach:metric(item?.reach,e.reach),likes,comments,shares,saves,reposts,followers
+ };
 }
 Deno.serve(async(req)=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:CORS});
@@ -33,77 +63,43 @@ Deno.serve(async(req)=>{
   const platform=hostPlatform(postUrl);if(!platform)return json({error:"Link harus Instagram, Facebook, atau TikTok."},400);
   const base={client_id:clientId,platform,post_url:postUrl,created_by:authUser.id};
 
-  // Primary path: public URL metrics directly from the post link.
-  // This mirrors the user's desired workflow: paste link -> return public metrics.
-  const pub=await publicMetrics(postUrl);
-  if(pub?.ok){
-    const item=pub.item||{};const m=item.metrics||{};const p=item.post||{};const a=item.author||{};const media=item.media||{};
-    const record={
-      ...base,
-      external_post_id:p.id||item.url||null,
-      author_handle:a.handle||null,
-      title:p.title||p.caption||item.title||null,
-      caption:p.caption||null,
-      published_at:p.publishedAt||null,
-      media_type:p.type||media.type||"unknown",
-      media_url:media.videoUrl||media.imageUrl||media.mediaUrl||null,
-      thumbnail_url:media.thumbnailUrl||media.coverUrl||null,
-      views:metric(m.views),
-      reach:metric(m.reach),
-      likes:metric(m.likes),
-      comments:metric(m.comments),
-      shares:metric(m.shares),
-      saves:metric(m.saves),
-      reposts:metric(m.reposts),
-      followers:metric(a.followers),
-      source:"refetcher",
-      import_status:"imported",
-      raw_data:item
-    };
-    record.analysis_text=await aiAnalyze(postUrl,record);
-    record.analysis_status=record.analysis_text?"done":"pending";
-    const inserted=await admin.from("social_post_imports").insert(record).select("*").single();
-    if(inserted.error)throw inserted.error;
-    return json({ok:true,status:"imported",source:"public_url",import:inserted.data,metricAvailability:item.metricAvailability||{}});
+  // Primary source: Apify public-post extraction from the exact URL.
+  if(Deno.env.get("APIFY_API_TOKEN")){
+    const actor=apifyActor(platform);
+    const input=platform==="instagram"?{postUrls:[postUrl]}:platform==="tiktok"?{postUrls:[postUrl]}:{postUrls:[postUrl]};
+    const items=await runApify(actor,input);
+    const item=items[0];
+    if(item){
+      const n=normalizeApify(platform,item);
+      const er=engagementRate(n,n.followers,n.views);
+      const record:any={...base,social_account_id:null,...n,engagement_rate:er,source:"apify",import_status:"imported",raw_data:item};
+      record.analysis_text=await aiAnalyze(postUrl,{platform,...n,engagement_rate:er},n.thumbnail_url||n.media_url);
+      record.analysis_status=record.analysis_text?"done":"pending";
+      const inserted=await admin.from("social_post_imports").insert(record).select("*").single();if(inserted.error)throw inserted.error;
+      return json({ok:true,status:"imported",source:"apify",import:inserted.data});
+    }
   }
 
-  // Fallback path: official OAuth API for metrics not exposed publicly and for connected accounts.
+  // Fallback: official OAuth API for connected accounts.
   const account=(await admin.from("social_accounts").select("id,client_id,platform,account_name,external_account_id,status,metadata").eq("client_id",clientId).eq("platform",platform).eq("status","connected").limit(1).maybeSingle()).data;
-  if(!account){
-    const inserted=await admin.from("social_post_imports").insert({...base,import_status:"needs_connection",source:"official_api"}).select("*").single();
-    return json({ok:true,status:"needs_connection",import:inserted.data,message:"Public URL metrics unavailable for this link. Hubungkan "+platform+" dengan OAuth untuk mencoba data resmi akun."});
-  }
-  const tok=(await admin.rpc("get_social_tokens",{p_social_account_id:account.id})).data?.[0]?.access_token;
-  if(!tok)throw new Error("Token akun social tidak tersedia. Hubungkan ulang akun.");
+  if(!account)return json({error:"Post URL belum berhasil dibaca. Tambahkan APIFY_API_TOKEN untuk membaca URL publik secara langsung, atau hubungkan akun "+platform+" melalui OAuth."},400);
+  const tok=(await admin.rpc("get_social_tokens",{p_social_account_id:account.id})).data?.[0]?.access_token;if(!tok)throw new Error("Token akun social tidak tersedia. Hubungkan ulang akun.");
   let data:any=null;
   if(platform==="instagram"){
     const apiVersion=Deno.env.get("META_GRAPH_VERSION")||"v26.0";const igId=account.external_account_id;
     const res=await fetch("https://graph.facebook.com/"+apiVersion+"/"+igId+"/media?fields=id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count&limit=100&access_token="+encodeURIComponent(tok));
-    const b=await res.json();if(!res.ok)throw new Error("Instagram API gagal: "+JSON.stringify(b));
-    const target=norm(postUrl);data=(b.data||[]).find((x:any)=>norm(x.permalink||"")===target);
-    if(!data)return json({error:"Post Instagram tidak ditemukan di akun yang terhubung."},404);
+    const b=await res.json();if(!res.ok)throw new Error("Instagram API gagal: "+JSON.stringify(b));data=(b.data||[]).find((x:any)=>new URL(x.permalink).toString().replace(/\/$/,"")===new URL(postUrl).toString().replace(/\/$/,""));
   }else if(platform==="facebook"){
-    const apiVersion=Deno.env.get("META_GRAPH_VERSION")||"v26.0";const pageId=account.external_account_id;
-    const m=postUrl.match(/(?:story_fbid=|posts\/)(\d+)/i);const directId=m?m[1]:null;
-    const fields="id,message,created_time,permalink_url,full_picture,shares,reactions.summary(true),comments.summary(true)";
-    const targetId=directId?((postUrl.match(/facebook\.com\/(\d+)/i)||[])[1]+"_"+directId):null;
-    const endpoint=targetId?"https://graph.facebook.com/"+apiVersion+"/"+targetId+"?fields="+encodeURIComponent(fields)+"&access_token="+encodeURIComponent(tok):"https://graph.facebook.com/"+apiVersion+"/"+pageId+"/posts?fields="+encodeURIComponent(fields)+"&limit=100&access_token="+encodeURIComponent(tok);
-    const res=await fetch(endpoint);const b=await res.json();if(!res.ok)throw new Error("Facebook API gagal: "+JSON.stringify(b));
-    data=directId?b:(b.data||[]).find((x:any)=>norm(x.permalink_url||"")===norm(postUrl));
-    if(!data)return json({error:"Post Facebook tidak ditemukan di Page yang terhubung."},404);
+    const apiVersion=Deno.env.get("META_GRAPH_VERSION")||"v26.0";const pageId=account.external_account_id;const fields="id,message,created_time,permalink_url,full_picture,shares,reactions.summary(true),comments.summary(true)";
+    const res=await fetch("https://graph.facebook.com/"+apiVersion+"/"+pageId+"/posts?fields="+encodeURIComponent(fields)+"&limit=100&access_token="+encodeURIComponent(tok));const b=await res.json();if(!res.ok)throw new Error("Facebook API gagal: "+JSON.stringify(b));data=(b.data||[]).find((x:any)=>x.permalink_url===postUrl);
   }else{
     const fields="id,title,video_description,cover_image_url,share_url,view_count,like_count,comment_count,share_count,create_time";
-    const res=await fetch("https://open.tiktokapis.com/v2/video/list/?fields="+encodeURIComponent(fields),{method:"POST",headers:{Authorization:"Bearer "+tok,"Content-Type":"application/json"},body:JSON.stringify({max_count:20})});
-    const b=await res.json();if(!res.ok)throw new Error("TikTok API gagal: "+JSON.stringify(b));
-    data=(b.data?.videos||[]).find((x:any)=>norm(x.share_url||"")===norm(postUrl));
-    if(!data)return json({error:"Video TikTok tidak ditemukan pada video terbaru akun terhubung."},404);
+    const res=await fetch("https://open.tiktokapis.com/v2/video/list/?fields="+encodeURIComponent(fields),{method:"POST",headers:{Authorization:"Bearer "+tok,"Content-Type":"application/json"},body:JSON.stringify({max_count:20})});const b=await res.json();if(!res.ok)throw new Error("TikTok API gagal: "+JSON.stringify(b));data=(b.data?.videos||[]).find((x:any)=>x.share_url===postUrl);
   }
-  const record={
-    ...base,social_account_id:account.id,external_post_id:data.id,title:data.title||data.video_description||data.message||null,caption:data.caption||data.video_description||data.message||null,
-    published_at:data.timestamp||data.created_time||null,media_type:data.media_type||"video",media_url:data.media_url||data.full_picture||null,thumbnail_url:data.thumbnail_url||data.cover_image_url||null,
-    views:metric(data.view_count||data.views),likes:metric(data.like_count||data.reactions?.summary?.total_count),comments:metric(data.comment_count||data.comments_count||data.comments?.summary?.total_count),shares:metric(data.share_count||data.shares?.count),reposts:metric(data.repost_count||data.reposts),source:"official_api",import_status:"imported",raw_data:data
-  };
-  record.analysis_text=await aiAnalyze(postUrl,record);record.analysis_status=record.analysis_text?"done":"pending";
+  if(!data)return json({error:"Post tidak ditemukan pada akun terhubung."},404);
+  const n=normalizeApify(platform,data,postUrl);const er=engagementRate(n,n.followers,n.views);
+  const record:any={...base,social_account_id:account.id,...n,engagement_rate:er,source:"official_api",import_status:"imported",raw_data:data};
+  record.analysis_text=await aiAnalyze(postUrl,{platform,...n,engagement_rate:er},n.thumbnail_url||n.media_url);record.analysis_status=record.analysis_text?"done":"pending";
   const inserted=await admin.from("social_post_imports").insert(record).select("*").single();if(inserted.error)throw inserted.error;
   await admin.from("social_accounts").update({last_sync_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",account.id);
   return json({ok:true,status:"imported",source:"official_api",import:inserted.data});
