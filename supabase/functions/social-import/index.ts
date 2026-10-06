@@ -73,7 +73,7 @@ Deno.serve(async(req)=>{
       const n=normalizeApify(platform,item);
       const er=engagementRate(n,n.followers,n.views);
       const record:any={...base,social_account_id:null,...n,engagement_rate:er,source:"apify",import_status:"imported",raw_data:item};
-      record.analysis_text=await aiAnalyze(postUrl,{platform,...n,engagement_rate:er},n.thumbnail_url||n.media_url);
+      record.analysis_text=await aiAnalyze(postUrl,{platform,...n,engagement_rate:er},n.thumbnail_url);
       record.analysis_status=record.analysis_text?"done":"pending";
       const inserted=await admin.from("social_post_imports").insert(record).select("*").single();if(inserted.error)throw inserted.error;
       return json({ok:true,status:"imported",source:"apify",import:inserted.data});
