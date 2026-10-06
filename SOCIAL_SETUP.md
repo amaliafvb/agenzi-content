@@ -66,6 +66,30 @@ OAuth tokens are stored through Supabase Vault using the database token bridge f
 
 ## Direct public URL metrics
 
+Social Hub kini menggunakan Apify untuk membaca **postingan publik langsung dari link**. Sistem memilih scraper berdasarkan platform:
+
+- Instagram: `data-slayer/instagram-post-details` — mendukung URL post/Reel dan mengembalikan likes, comments, views, shares, saves, reposts, caption, media, dan metadata creator. citeturn521967view0turn964629view1
+- TikTok: `a.actors/tiktok-post-data` — menerima URL TikTok dan mengembalikan views, likes, comments, shares, saves, caption, timestamp, media, dan statistik creator. citeturn757840search0
+- Facebook: `headlessagent/facebook-profile-post-scraper` — menerima `postUrls` dan mengembalikan reaction count, comment count, share count, media, text, dan metadata post. citeturn463633search5turn757840search5
+
+Tambahkan secret berikut di Supabase → Edge Functions → Secrets:
+
+`APIFY_API_TOKEN`
+
+Opsional untuk mengganti actor bawaan:
+`APIFY_INSTAGRAM_ACTOR`
+`APIFY_TIKTOK_ACTOR`
+`APIFY_FACEBOOK_ACTOR`
+
+Token Apify hanya berada di Edge Function, bukan browser.
+
+Alur kerja AGENZI:
+
+`Paste link → Pull Metrics → simpan metrics + caption/media → hitung Engagement Rate → AI baca konten → insight & rekomendasi → siap masuk report.`
+
+Engagement Rate dihitung dari total interaksi yang tersedia dibagi follower count bila tersedia; jika follower tidak tersedia, sistem memakai views sebagai basis untuk konten video.
+
+
 Social Hub now uses a server-side public URL metrics adapter before OAuth. Paste an Instagram, Facebook, or TikTok post URL and AGENZI asks Refetcher for normalized metrics. The provider documents one POST endpoint that accepts a public URL and returns normalized metrics such as views, likes, comments and shares, with availability reported per metric. [Refetcher API docs](https://www.refetcher.com/docs)
 
 Set REFETCHER_API_KEY in Supabase Edge Function Secrets. The browser never sees the key.
