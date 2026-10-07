@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-function cleanToken(value:string){return String(value||"").trim().replace(/^["']|["']$/g,"").replace(/^Bearer\s+/i,"").trim()}\nconst CORS={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type"};
+function cleanToken(value:string){return String(value||"").trim().replace(/^["']|["']$/g,"").replace(/^Bearer\s+/i,"").trim()}
+const CORS={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...CORS,"Content-Type":"application/json"}});
 Deno.serve(async(req)=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:CORS});
