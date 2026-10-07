@@ -17,7 +17,7 @@ function messageBlock(url:string,data:any){return "Post URL: "+url+"\n\nStructur
 async function runApify(actor:string,input:any){
  const token=Deno.env.get("APIFY_API_TOKEN");if(!token)return null;
  const endpoint="https://api.apify.com/v2/acts/"+actor+"/run-sync-get-dataset-items?token="+encodeURIComponent(token);
- const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify(input)});
+ const r=await fetch(endpoint+"?token="+encodeURIComponent(token),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(input)});
  const b=await r.json();
  if(!r.ok)throw new Error("Apify gagal: "+JSON.stringify(b));
  return Array.isArray(b)?b:(Array.isArray(b?.data)?b.data:[]);
