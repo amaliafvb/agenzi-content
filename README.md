@@ -83,3 +83,6 @@ Branch: main
 
 ## Important
 Environment-specific credentials are intentionally not included in GitHub source.
+
+
+<!-- Social URL metrics integration updated -->
