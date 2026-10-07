@@ -49,6 +49,17 @@ function normalizeApify(platform:string,item:any,url:string){
    views,reach:metric(item?.reach,e.reach),likes,comments,shares,saves,reposts,followers
  };
 }
+async function persistImported(admin:any,record:any,contentId:string|null){
+ const inserted=await admin.from("social_post_imports").insert(record).select("*").single();
+ if(inserted.error)throw inserted.error;
+ if(contentId){
+   const m=record;
+   const perf={content_id:contentId,views:metric(m.views),reach:metric(m.reach),likes:metric(m.likes),comments:metric(m.comments),shares:metric(m.shares),saves:metric(m.saves),clicks:metric(m.clicks),leads:0,updated_at:new Date().toISOString()};
+   const pr=await admin.from("performance_metrics").upsert(perf,{onConflict:"content_id"});
+   if(pr.error)throw pr.error;
+ }
+ return inserted.data;
+}
 Deno.serve(async(req)=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:CORS});
  try{
@@ -58,10 +69,10 @@ Deno.serve(async(req)=>{
   const me=(await admin.from("profiles").select("id,role,active").eq("id",authUser.id).single()).data;
   if(!me?.active||!["admin","strategist"].includes(me.role))return json({error:"Only Admin/Strategist can import social posts."},403);
 
-  const body=await req.json();const clientId=String(body.client_id||"");const postUrl=String(body.post_url||"").trim();
+  const body=await req.json();const clientId=String(body.client_id||"");const contentId=String(body.content_id||"")||null;const postUrl=String(body.post_url||"").trim();
   if(!clientId||!postUrl)return json({error:"client_id and post_url are required"},400);
   const platform=hostPlatform(postUrl);if(!platform)return json({error:"Link harus Instagram, Facebook, atau TikTok."},400);
-  const base={client_id:clientId,platform,post_url:postUrl,created_by:authUser.id};
+  const base={client_id:clientId,content_id:contentId,platform,post_url:postUrl,created_by:authUser.id};
 
   // Primary source: Apify public-post extraction from the exact URL.
   if(Deno.env.get("APIFY_API_TOKEN")){
