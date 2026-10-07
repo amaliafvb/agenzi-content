@@ -20,11 +20,11 @@ if(!client)return json({error:"Client not found"},404);
 const mode=String(body.mode||"agent");
 const message=String(body.message||"");
 const history=Array.isArray(body.history)?body.history.slice(-12):[];
-const content=Array.isArray(body.content)?body.content.slice(0,80):[];
+const content=Array.isArray(body.content)?body.content.slice(0,80):[];const socialPosts=Array.isArray(body.social_posts)?body.social_posts.slice(0,30):[];
 const metrics=body.metrics||{};
 const image=typeof body.image==="string"?body.image:null;
 const modeGuide={agent:"Act as an agency AI strategist: diagnose the request, use data, and return practical next steps.",ideas:"Generate content ideas, hooks, angles, formats, and scripts based on evidence from the account.",strategy:"Build a practical monthly social strategy from observed patterns, audience signals, and performance data.",metrics:"Extract visible social-media metrics from the uploaded screenshot when present; do not invent missing numbers. Return a clean metric table and note uncertain readings."}[mode]||"Act as an agency AI strategist.";
-const context=JSON.stringify({client:client.name,mode,metrics,content});
+const context=JSON.stringify({client:client.name,mode,metrics,content,social_posts:socialPosts});
 const system="You are AGENZI AI, an internal AI agent for a social media agency. Respond in Indonesian unless the user writes in English. Be practical and concise. Never invent metrics. Separate observed data from recommendations. Use headings and bullets when helpful. "+modeGuide+"\\n\\nWorkspace data:\\n"+context;
 const input:any[]=[{role:"system",content:system},...history.map((m:any)=>({role:m.role==="assistant"?"assistant":"user",content:String(m.content||"")}))];
 if(image){input.push({role:"user",content:[{type:"input_text",text:message||"Baca screenshot ini dan ekstrak metrics yang terlihat."},{type:"input_image",image_url:image}]})}else{input.push({role:"user",content:message||"Tolong analisis data client ini."})}
@@ -33,8 +33,8 @@ if(!apiKey)return json({error:"OPENAI_API_KEY belum diset di Supabase Edge Funct
 const model=Deno.env.get("OPENAI_MODEL")||"gpt-5";
 const openaiRes=await fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{"Authorization":"Bearer "+apiKey,"Content-Type":"application/json"},body:JSON.stringify({model,store:false,input})});
 const openaiBody=await openaiRes.json();
-if(!openaiRes.ok)return json({error:"OpenAI request failed",details:openaiBody},502);
+if(!openaiRes.ok)return json({error:"OpenAI request failed ("+openaiRes.status+")",details:openaiBody},200);
 const answer=extractText(openaiBody);
-if(!answer)return json({error:"AI returned an empty response."},502);
+if(!answer)return json({error:"AI returned an empty response.",details:openaiBody},200);
 return json({ok:true,answer,mode,client:client.name});
 }catch(error){return json({error:error instanceof Error?error.message:"Unexpected error"},500)}});
