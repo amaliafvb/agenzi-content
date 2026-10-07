@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-function cleanToken(value:string){return String(value||"").trim().replace(/^["']|["']$/g,"").replace(/^Bearer\s+/i,"").trim()}\nconst CORS={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type"};
+function cleanToken(value:string){return String(value||"").trim().replace(/^["']|["']$/g,"").replace(/^Bearer\s+/i,"").trim()}
+const CORS={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...CORS,"Content-Type":"application/json"}});
 function hostPlatform(url:string){try{const h=new URL(url).hostname.toLowerCase();if(h.includes("instagram.com"))return"instagram";if(h.includes("facebook.com")||h==="fb.com")return"facebook";if(h.includes("tiktok.com"))return"tiktok";return null}catch{return null}}
 function metric(...vals:any[]){for(const v of vals){const n=Number(v);if(Number.isFinite(n)&&n>=0)return n}return 0}
