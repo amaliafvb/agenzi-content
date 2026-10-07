@@ -25,7 +25,7 @@ async function runApify(actor:string,input:any){
 function apifyActor(platform:string){
  return platform==="instagram"?(Deno.env.get("APIFY_INSTAGRAM_ACTOR")||"data-slayer~instagram-post-details"):
  platform==="tiktok"?(Deno.env.get("APIFY_TIKTOK_ACTOR")||"a.actors~tiktok-post-data"):
- (Deno.env.get("APIFY_FACEBOOK_ACTOR")||"headlessagent~facebook-profile-post-scraper");
+ (Deno.env.get("APIFY_FACEBOOK_ACTOR")||"parsebird~facebook-user-posts-scraper");
 }
 function normalizeApify(platform:string,item:any,url:string){
  const e=item?.engagement||{};
@@ -75,9 +75,10 @@ Deno.serve(async(req)=>{
   const base={client_id:clientId,content_id:contentId,platform,post_url:postUrl,created_by:authUser.id};
 
   // Primary source: Apify public-post extraction from the exact URL.
+  if(!Deno.env.get("APIFY_API_TOKEN"))return json({error:"APIFY_API_TOKEN belum dipasang di Supabase → Edge Functions → Secrets. Tambahkan token Apify untuk mengaktifkan Pull Metrics dari link.",code:"APIFY_NOT_CONFIGURED"},503);
   if(Deno.env.get("APIFY_API_TOKEN")){
     const actor=apifyActor(platform);
-    const input=platform==="instagram"?{postUrls:[postUrl]}:platform==="tiktok"?{postUrls:[postUrl]}:{postUrls:[postUrl]};
+    const input=platform==="facebook"?{findPostsBy:"postUrls",postUrls:[postUrl]}:{postUrls:[postUrl]};
     const items=await runApify(actor,input);
     const item=items[0];
     if(item){
@@ -93,7 +94,7 @@ Deno.serve(async(req)=>{
 
   // Fallback: official OAuth API for connected accounts.
   const account=(await admin.from("social_accounts").select("id,client_id,platform,account_name,external_account_id,status,metadata").eq("client_id",clientId).eq("platform",platform).eq("status","connected").limit(1).maybeSingle()).data;
-  if(!account)return json({error:"Post URL belum berhasil dibaca. Tambahkan APIFY_API_TOKEN untuk membaca URL publik secara langsung, atau hubungkan akun "+platform+" melalui OAuth."},400);
+  if(!account)return json({error:"Link belum menghasilkan data. Pastikan postingan publik dan URL tepat. Bila platform membatasi data publik, hubungkan akun resmi melalui OAuth.",code:"POST_NOT_READABLE"},404);
   const tok=(await admin.rpc("get_social_tokens",{p_social_account_id:account.id})).data?.[0]?.access_token;if(!tok)throw new Error("Token akun social tidak tersedia. Hubungkan ulang akun.");
   let data:any=null;
   if(platform==="instagram"){
