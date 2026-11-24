@@ -72,10 +72,15 @@ Deno.serve(async(req)=>{
   const admin=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const authUser=(await admin.auth.getUser(token)).data.user;if(!authUser)return json({error:"Unauthorized"},401);
   const me=(await admin.from("profiles").select("id,role,active").eq("id",authUser.id).single()).data;
-  if(!me?.active||!["admin","strategist"].includes(me.role))return json({error:"Only Admin/Strategist can import social posts."},403);
+  if(!me?.active)return json({error:"Active account required."},403);
 
   const body=await req.json();const clientId=String(body.client_id||"");const contentId=String(body.content_id||"")||null;const postUrl=String(body.post_url||"").trim();
   if(!clientId||!postUrl)return json({error:"client_id and post_url are required"},400);
+  if(!["admin","strategist"].includes(me.role)){
+    if(!["pic","smm"].includes(me.role))return json({error:"Only Admin, Strategist, PIC, or SMM can import social posts."},403);
+    const assignment=(await admin.from("team_client_assignments").select("id").eq("profile_id",authUser.id).eq("client_id",clientId).eq("can_view",true).maybeSingle()).data;
+    if(!assignment)return json({error:"You are not assigned to this client."},403);
+  }
   const platform=hostPlatform(postUrl);if(!platform)return json({error:"Link harus Instagram, Facebook, atau TikTok."},400);
   const base={client_id:clientId,content_id:contentId,platform,post_url:postUrl,created_by:authUser.id};
 
