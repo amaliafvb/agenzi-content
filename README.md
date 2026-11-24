@@ -31,7 +31,7 @@ Passwords are handled by Supabase Auth. There are no demo passwords or localStor
 RLS enforces access at the database layer:
 - Admin: all internal data
 - Strategist: workspace/client management and analytics
-- Copywriter: assigned client content + own assigned tasks
+- Production roles (Editor, Video Editor, Content Creator, WFH Designer, plus legacy Copywriter/Designer): only assigned task content and own WFH fee records
 - PIC/SMM: assigned client workspace and content
 - Editor/Video Editor/Content Creator/WFH Designer: only assigned task content and their own WFH fee records
 
