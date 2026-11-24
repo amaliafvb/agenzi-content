@@ -2,6 +2,7 @@ import { supabase } from './supabase.js';
 import { state } from './auth.js';
 
 const esc = v => String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const safeUrl = value => { try { const u = new URL(value); return ['http:','https:'].includes(u.protocol) ? u.href : ''; } catch { return ''; } };
 const fmt = v => Number(v || 0).toLocaleString('id-ID');
 const role = () => state.profile?.role || '';
 const manager = () => ['admin','strategist'].includes(role());
@@ -96,7 +97,7 @@ async function competitorsPage(root) {
   root.innerHTML='<h1>Competitor Monitoring</h1><p class="subtitle">Simpan referensi kompetitor dan catatan pemantauan untuk setiap klien.</p>'+
     (clientEditor()?'<div class="card"><h3>Tambah Kompetitor</h3><div class="grid g4"><div class="field"><label>Client</label><select class="control" id="cpClient">'+clientOptions(clients)+'</select></div><div class="field"><label>Nama kompetitor</label><input class="control" id="cpName"></div><div class="field"><label>Platform</label><select class="control" id="cpPlatform"><option>Instagram</option><option>TikTok</option><option>Facebook</option><option>YouTube</option><option>Website</option></select></div><div class="field"><label>Link akun</label><input class="control" id="cpUrl" placeholder="https://..."></div></div><div class="field"><label>Catatan</label><input class="control" id="cpNotes"></div><button class="button button-primary" id="cpCreate">Simpan Kompetitor</button></div>':'')+
     '<div class="card" style="margin-top:14px"><div class="tablewrap"><table class="table"><thead><tr><th>Kompetitor</th><th>Client</th><th>Platform</th><th>Link</th><th>Catatan</th></tr></thead><tbody>'+
-    (rows.map(x=>'<tr><td><b>'+esc(x.competitor_name)+'</b></td><td>'+esc(x.clients?.name||'-')+'</td><td>'+esc(x.platform||'-')+'</td><td>'+(x.account_url?'<a href="'+esc(x.account_url)+'" target="_blank" rel="noopener">Open</a>':'-')+'</td><td>'+esc(x.notes||'-')+'</td></tr>').join('')||'<tr><td colspan="5" class="empty">Belum ada kompetitor.</td></tr>')+
+    (rows.map(x=>'<tr><td><b>'+esc(x.competitor_name)+'</b></td><td>'+esc(x.clients?.name||'-')+'</td><td>'+esc(x.platform||'-')+'</td><td>'+(safeUrl(x.account_url)?'<a href="'+esc(safeUrl(x.account_url))+'" target="_blank" rel="noopener noreferrer">Open</a>':'-')+'</td><td>'+esc(x.notes||'-')+'</td></tr>').join('')||'<tr><td colspan="5" class="empty">Belum ada kompetitor.</td></tr>')+
     '</tbody></table></div></div>';
   if(el(root,'#cpCreate'))el(root,'#cpCreate').onclick=async()=>{
     const competitor_name=el(root,'#cpName').value.trim(),client_id=el(root,'#cpClient').value;
