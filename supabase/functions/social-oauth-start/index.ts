@@ -13,11 +13,16 @@ Deno.serve(async(req)=>{
     const authUser=(await admin.auth.getUser(token)).data.user;
     if(!authUser)return json({error:"Unauthorized"},401);
     const me=(await admin.from("profiles").select("id,role,active").eq("id",authUser.id).single()).data;
-    if(!me?.active||!["admin","strategist"].includes(me.role))return json({error:"Only Admin/Strategist can connect social accounts."},403);
+    if(!me?.active)return json({error:"Active account required."},403);
     const body=await req.json();
     const clientId=String(body.client_id||"");
     const platform=String(body.platform||"");
     if(!clientId||!["meta","tiktok"].includes(platform))return json({error:"client_id and platform (meta|tiktok) are required."},400);
+    if(!["admin","strategist"].includes(me.role)){
+      if(!["pic","smm"].includes(me.role))return json({error:"Only Admin, Strategist, PIC, or SMM can connect social accounts."},403);
+      const assignment=(await admin.from("team_client_assignments").select("id").eq("profile_id",authUser.id).eq("client_id",clientId).eq("can_view",true).maybeSingle()).data;
+      if(!assignment)return json({error:"You are not assigned to this client."},403);
+    }
     const client=(await admin.from("clients").select("id,name").eq("id",clientId).single()).data;
     if(!client)return json({error:"Client not found"},404);
     const state=crypto.randomUUID().replaceAll("-","");

@@ -5,12 +5,15 @@ Internal workspace for AGENZI Digital Mandiri to run client content operations a
 ## Product
 - Premium light UI: ivory, white and orange
 - Internal-only login; no client login
-- Roles: Admin, Strategist, Copywriter, Designer
+- Roles: Admin, Strategist, PIC, SMM, Editor, Video Editor, Content Creator, WFH Designer (legacy Strategist/Copywriter/Designer roles remain supported)
 - Per-client assignment
 - Content calendar: month / client / platform / status
 - Client-only calendar PDF export
 - Content database: caption/copy, Canva, Drive, publish link, approval, PIC and due date
+- Projects linked to client content calendars
+- Experiment tracker, lead tracker, and competitor monitoring
 - Division tasks: PIC, status, priority, due date and notes
+- WFH work logs with per-output and per-project fee rules; freelancers see only their own work logs and fees
 - Performance: views, reach, likes, comments, shares, saves, clicks, leads
 - Work / Not Work learning
 - Realtime cross-device synchronization
@@ -29,7 +32,8 @@ RLS enforces access at the database layer:
 - Admin: all internal data
 - Strategist: workspace/client management and analytics
 - Copywriter: assigned client content + own assigned tasks
-- Designer: assigned client content + own assigned tasks
+- PIC/SMM: assigned client workspace and content
+- Editor/Video Editor/Content Creator/WFH Designer: only assigned task content and their own WFH fee records
 
 Client master data can be edited by Admin/Strategist; client deletion is Admin-only.
 
